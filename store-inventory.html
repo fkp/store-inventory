@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<!-- saved from url=(0055)file:///C:/Users/frase/Downloads/scout-inventory_4.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<!--
+╔══════════════════════════════════════════════════════════════════╗
+║               SCOUT INVENTORY — SETUP GUIDE                     ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║  ONE-TIME FIREBASE SETUP (~15 minutes, completely free)         ║
+║                                                                  ║
+║  STEP 1 — Create Firebase project                               ║
+║    1. Go to https://console.firebase.google.com                  ║
+║    2. Click "Add project" → name it (e.g. "scout-inventory")    ║
+║    3. Disable Google Analytics → Create project                  ║
+║                                                                  ║
+║  STEP 2 — Enable Authentication                                  ║
+║    1. Left menu: Build → Authentication → Get started            ║
+║    2. Sign-in method tab → Enable "Email/Password"              ║
+║    3. Also enable "Email link (passwordless sign-in)"           ║
+║                                                                  ║
+║  STEP 3 — Create Firestore database                             ║
+║    1. Left menu: Build → Firestore Database → Create database   ║
+║    2. Choose "Start in production mode" → pick your region      ║
+║                                                                  ║
+║  STEP 4 — Set Firestore security rules                          ║
+║    In Firestore → Rules tab, replace everything with:           ║
+║                                                                  ║
+║    rules_version = '2';                                          ║
+║    service cloud.firestore {                                     ║
+║      match /databases/{database}/documents {                     ║
+║        match /allowedUsers/{docId} {                             ║
+║          allow read: if request.auth != null;                    ║
+║          allow write: if false;                                  ║
+║        }                                                         ║
+║        match /items/{id} {                                       ║
+║          allow read, write: if request.auth != null &&           ║
+║            exists(/databases/$(database)/documents/              ║
+║            allowedUsers/$(request.auth.token.email               ║
+║            .replace('.','_')));                                   ║
+║        }                                                         ║
+║        match /loans/{id} {                                       ║
+║          allow read, write: if request.auth != null &&           ║
+║            exists(/databases/$(database)/documents/              ║
+║            allowedUsers/$(request.auth.token.email               ║
+║            .replace('.','_')));                                   ║
+║        }                                                         ║
+║      }                                                           ║
+║    }                                                             ║
+║                                                                  ║
+║  STEP 5 — Get your Firebase config                              ║
+║    1. Project Settings (gear icon) → General tab                ║
+║    2. Scroll to "Your apps" → click Web (</>)                   ║
+║    3. Register app (any nickname)                                ║
+║    4. Copy the config values into HARDCODED_CONFIG below        ║
+║                                                                  ║
+║  STEP 6 — Add your GitHub Pages domain                          ║
+║    Authentication → Settings → Authorized domains               ║
+║    Add: yourusername.github.io                                   ║
+║                                                                  ║
+║  STEP 7 — Add your first allowed user                           ║
+║    In Firestore → Data tab:                                      ║
+║    1. Start collection → ID: allowedUsers                        ║
+║    2. Add document:                                              ║
+║       Document ID = email with dots replaced by underscores      ║
+║       e.g.  jane@scouts.org  becomes  jane@scouts_org           ║
+║       Field: email | Type: string | Value: jane@scouts.org       ║
+║    3. Repeat for each leader you want to allow                  ║
+║                                                                  ║
+║  STEP 8 — Deploy to GitHub Pages (free)                         ║
+║    1. Create GitHub repo, upload this file as index.html         ║
+║    2. Settings → Pages → Deploy from main branch                ║
+║    3. Share the URL with your leaders                            ║
+║                                                                  ║
+║  MANAGING USERS LATER                                            ║
+║    Add or delete documents in the allowedUsers Firestore         ║
+║    collection. No code changes needed.                           ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+-->
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Scout Inventory</title>
+<style>
+  :root {
+    --green:#3B6D11; --green-light:#EAF3DE; --green-mid:#639922; --green-dark:#27500A;
+    --amber:#BA7517; --amber-light:#FAEEDA;
+    --red:#A32D2D; --red-light:#FCEBEB;
+    --gray-50:#F1EFE8; --gray-100:#D3D1C7; --gray-400:#888780; --gray-600:#5F5E5A; --gray-900:#2C2C2A;
+    --white:#fff; --radius:12px; --radius-sm:8px;
+    --font:'Trebuchet MS','Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--gray-50);color:var(--gray-900);min-height:100vh;max-width:480px;margin:0 auto}
+
+  /* ── Loading ── */
+  #loadingScreen{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--white)}
+  .spinner{width:36px;height:36px;border:3px solid var(--green-light);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ── Setup ── */
+  #setupScreen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 20px;background:var(--white);gap:16px}
+  .setup-card{background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:24px;width:100%;max-width:380px}
+  .setup-card h2{font-size:17px;font-weight:700;margin-bottom:6px}
+  .setup-desc{font-size:13px;color:var(--gray-400);margin-bottom:16px;line-height:1.5}
+  .setup-label{font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:block;margin-top:10px}
+  .setup-input{width:100%;border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;font-family:var(--font);color:var(--gray-900);background:var(--white);outline:none;transition:border-color .15s}
+  .setup-input:focus{border-color:var(--green-mid)}
+  .setup-save{width:100%;background:var(--green);color:white;border:none;border-radius:var(--radius-sm);padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);margin-top:16px;transition:background .15s}
+  .setup-save:hover{background:var(--green-dark)}
+  .setup-hint{font-size:12px;color:var(--gray-400);line-height:1.6;text-align:center;max-width:340px}
+  .setup-hint a{color:var(--green);text-decoration:none}
+
+  /* ── Login ── */
+  #loginScreen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background:var(--white)}
+  .login-logo{width:72px;height:72px;border-radius:18px;background:var(--green);display:flex;align-items:center;justify-content:center;font-size:36px;margin-bottom:24px;box-shadow:0 4px 16px rgba(59,109,17,.25)}
+  .login-title{font-size:26px;font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
+  .login-sub{font-size:15px;color:var(--gray-400);margin-bottom:32px;line-height:1.5}
+  .login-card{background:var(--gray-50);border:1px solid var(--gray-100);border-radius:var(--radius);padding:24px;width:100%;max-width:340px;text-align:left}
+  .login-card h2{font-size:15px;font-weight:600;margin-bottom:4px}
+  .login-card p{font-size:13px;color:var(--gray-400);margin-bottom:16px;line-height:1.5}
+  .login-input{width:100%;border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:12px 14px;font-size:15px;font-family:var(--font);color:var(--gray-900);background:var(--white);outline:none;margin-bottom:12px;transition:border-color .15s}
+  .login-input:focus{border-color:var(--green-mid)}
+  .login-btn{width:100%;background:var(--green);color:white;border:none;border-radius:var(--radius-sm);padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .login-btn:hover{background:var(--green-dark)}
+  .login-btn:disabled{opacity:.6;cursor:not-allowed}
+  .demo-btn{width:100%;max-width:340px;background:transparent;color:var(--gray-600);border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:border-color .15s,color .15s}
+  .demo-btn:hover{border-color:var(--gray-400);color:var(--gray-900)}
+
+  /* ── Check email ── */
+  #checkEmailScreen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background:var(--white)}
+  .big-icon{font-size:56px;margin-bottom:20px}
+  .screen-title{font-size:22px;font-weight:700;margin-bottom:10px}
+  .screen-sub{font-size:15px;color:var(--gray-400);line-height:1.6;max-width:300px}
+  .email-highlight{font-weight:600;color:var(--green)}
+  .outline-btn{margin-top:20px;background:transparent;border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:11px 20px;font-size:14px;font-weight:600;cursor:pointer;color:var(--gray-600);font-family:var(--font);transition:border-color .15s}
+  .outline-btn:hover{border-color:var(--gray-400)}
+  .ghost-btn{margin-top:8px;background:transparent;border:none;color:var(--gray-400);font-size:13px;cursor:pointer;font-family:var(--font);padding:8px}
+
+  /* ── Not allowed ── */
+  #notAllowedScreen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background:var(--white);gap:12px}
+
+  /* ── App ── */
+  #appScreen{display:none}
+
+  /* Header */
+  .app-header{background:var(--green);color:white;padding:16px 20px 14px;position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  .app-header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;display:flex;align-items:center;gap:8px}
+  .header-right{display:flex;align-items:center;gap:10px}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);display:inline-block;transition:background .3s}
+  .sync-dot.syncing{background:#FAC775;animation:pulse 1s infinite}
+  .sync-dot.ok{background:#C0DD97}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .user-chip{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:5px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s}
+  .user-chip:hover{background:rgba(255,255,255,.3)}
+  .user-avatar{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.4);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600}
+
+  /* Controls */
+  .controls-bar{background:var(--white);padding:12px 16px;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center}
+  .search-wrap{flex:1;position:relative}
+  .search-wrap input{width:100%;border:1px solid var(--gray-100);border-radius:var(--radius-sm);padding:9px 12px 9px 34px;font-size:14px;font-family:var(--font);background:var(--gray-50);color:var(--gray-900);outline:none;transition:border-color .15s}
+  .search-wrap input:focus{border-color:var(--green-mid);background:var(--white)}
+  .search-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--gray-400);font-size:15px;pointer-events:none}
+  .filter-select{border:1px solid var(--gray-100);border-radius:var(--radius-sm);padding:9px 10px;font-size:13px;font-family:var(--font);background:var(--gray-50);color:var(--gray-600);outline:none;cursor:pointer}
+
+  /* Category pills */
+  .cat-pills{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;scrollbar-width:none;background:var(--white);border-bottom:1px solid var(--gray-100)}
+  .cat-pills::-webkit-scrollbar{display:none}
+  .cat-pill{border:1.5px solid var(--gray-100);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:500;cursor:pointer;background:var(--white);color:var(--gray-600);white-space:nowrap;transition:all .12s;font-family:var(--font)}
+  .cat-pill.active{background:var(--green);border-color:var(--green);color:white}
+
+  /* Stats */
+  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 16px}
+  .stat-card{background:var(--white);border-radius:var(--radius-sm);padding:10px 12px;border:1px solid var(--gray-100);text-align:center}
+  .stat-value{font-size:22px;font-weight:600;color:var(--green);line-height:1;margin-bottom:3px}
+  .stat-value.warn{color:var(--amber)}
+  .stat-value.danger{color:var(--red)}
+  .stat-label{font-size:11px;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px}
+
+  /* Item cards */
+  .items-list{padding:0 16px 100px;display:flex;flex-direction:column;gap:10px}
+  .item-card{background:var(--white);border-radius:var(--radius);border:1px solid var(--gray-100);overflow:hidden}
+  .item-card-body{padding:14px 16px 10px;display:flex;align-items:flex-start;gap:12px}
+  .item-icon-wrap{width:42px;height:42px;border-radius:10px;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .item-icon-wrap.low{background:var(--amber-light)}
+  .item-icon-wrap.out{background:var(--red-light)}
+  .item-info{flex:1;min-width:0}
+  .item-name{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item-meta{font-size:12px;color:var(--gray-400);margin-top:2px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+  .meta-sep{color:var(--gray-100)}
+  .location-tag{display:inline-flex;align-items:center;gap:3px;background:var(--gray-50);border-radius:4px;padding:1px 6px;font-size:11px;color:var(--gray-600);border:1px solid var(--gray-100);margin-top:3px;white-space:nowrap}
+  .item-stock{display:flex;align-items:center;gap:6px;margin-top:6px}
+  .stock-badge{font-size:13px;font-weight:600;padding:2px 8px;border-radius:20px;background:var(--green-light);color:var(--green-dark)}
+  .stock-badge.low{background:var(--amber-light);color:#633806}
+  .stock-badge.out{background:var(--red-light);color:#791F1F}
+  .stock-of{font-size:12px;color:var(--gray-400)}
+  .item-actions{display:flex;border-top:1px solid var(--gray-100);margin-top:10px}
+  .action-btn{flex:1;border:none;background:transparent;padding:11px 8px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:background .12s;font-family:var(--font);color:var(--gray-600)}
+  .action-btn.checkout{color:var(--amber)}
+  .action-btn.checkout:hover{background:var(--amber-light)}
+  .action-btn.checkin{color:var(--green)}
+  .action-btn.checkin:hover{background:var(--green-light)}
+  .action-btn:disabled{opacity:.35;cursor:not-allowed}
+  .action-btn:disabled:hover{background:transparent}
+  .btn-divider{width:1px;background:var(--gray-100);flex-shrink:0}
+
+  /* Loans */
+  .loans-list{padding:0 16px 12px;display:flex;flex-direction:column;gap:4px}
+  .loan-chip{background:var(--gray-50);border-radius:6px;padding:6px 10px;font-size:12px;color:var(--gray-600);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .loan-name{font-weight:600;color:var(--gray-900)}
+  .loan-date{color:var(--gray-400);font-size:11px}
+  .loan-return-btn{background:var(--green-light);border:none;border-radius:6px;padding:4px 8px;font-size:11px;font-weight:600;color:var(--green-dark);cursor:pointer;font-family:var(--font);transition:background .12s;white-space:nowrap}
+  .loan-return-btn:hover{background:#C0DD97}
+
+  /* FAB */
+  .fab{position:fixed;bottom:24px;right:20px;background:var(--green);color:white;border:none;border-radius:28px;padding:14px 22px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;box-shadow:0 4px 16px rgba(59,109,17,.35);font-family:var(--font);transition:background .15s,transform .1s;z-index:90}
+  .fab:hover{background:var(--green-dark)}
+  .fab:active{transform:scale(.97)}
+
+  /* Modals */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:flex-end;justify-content:center}
+  .overlay.open{display:flex}
+  .modal{background:var(--white);border-radius:var(--radius) var(--radius) 0 0;padding:24px 20px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;animation:slideUp .2s ease}
+  @keyframes slideUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .modal-handle{width:36px;height:4px;background:var(--gray-100);border-radius:4px;margin:0 auto 20px}
+  .modal-title{font-size:18px;font-weight:600;margin-bottom:20px}
+  .form-group{margin-bottom:16px}
+  .form-label{display:block;font-size:12px;font-weight:600;color:var(--gray-600);margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+  .form-input,.form-select{width:100%;border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:11px 14px;font-size:15px;font-family:var(--font);color:var(--gray-900);background:var(--white);outline:none;transition:border-color .15s}
+  .form-input:focus,.form-select:focus{border-color:var(--green-mid)}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .form-hint{font-size:12px;color:var(--gray-400);margin-top:4px}
+
+  /* Location section in modal */
+  .location-section{background:var(--gray-50);border-radius:var(--radius-sm);padding:14px;border:1px solid var(--gray-100);margin-bottom:16px}
+  .location-section-title{font-size:12px;font-weight:600;color:var(--gray-600);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+
+  /* Emoji grid */
+  .emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:6px}
+  .emoji-btn{border:2px solid transparent;border-radius:var(--radius-sm);background:var(--gray-50);padding:8px;font-size:20px;cursor:pointer;text-align:center;transition:border-color .12s,background .12s}
+  .emoji-btn:hover{background:var(--green-light)}
+  .emoji-btn.selected{border-color:var(--green-mid);background:var(--green-light)}
+
+  .modal-actions{display:flex;gap:10px;margin-top:24px}
+  .btn-primary{flex:1;background:var(--green);color:white;border:none;border-radius:var(--radius-sm);padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background .15s}
+  .btn-primary:hover{background:var(--green-dark)}
+  .btn-secondary{background:var(--gray-50);color:var(--gray-600);border:1px solid var(--gray-100);border-radius:var(--radius-sm);padding:13px 18px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font)}
+  .btn-danger{background:var(--red-light);color:var(--red);border:none;border-radius:var(--radius-sm);padding:13px 18px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font)}
+
+  /* Qty selector */
+  .qty-selector{display:flex;align-items:center;gap:16px;margin:12px 0}
+  .qty-btn{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--gray-100);background:var(--white);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gray-600);font-family:var(--font);line-height:1}
+  .qty-display{font-size:28px;font-weight:700;min-width:40px;text-align:center}
+
+  /* Empty */
+  .empty-state{text-align:center;padding:48px 24px;color:var(--gray-400)}
+  .empty-icon{font-size:48px;margin-bottom:12px}
+  .empty-title{font-size:16px;font-weight:600;color:var(--gray-600);margin-bottom:6px}
+
+  /* Toast */
+  .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:white;border-radius:24px;padding:10px 20px;font-size:14px;font-weight:500;z-index:300;opacity:0;transition:opacity .2s;white-space:nowrap;max-width:90vw;text-align:center;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loadingScreen" style="display: none;">
+  <div style="font-size:40px">🏕️</div>
+  <div class="spinner"></div>
+  <div style="font-size:14px;color:var(--gray-400)">Loading Scout Inventory…</div>
+</div>
+
+<!-- Setup (no Firebase config yet) -->
+<div id="setupScreen" style="display: flex;">
+  <div style="font-size:40px;text-align:center">🏕️</div>
+  <div class="setup-card">
+    <h2>Firebase Setup Required</h2>
+    <p class="setup-desc">Paste your Firebase project credentials below. Only needs doing once — see the full guide in the HTML file comments.</p>
+    <label class="setup-label">API Key</label>
+    <input class="setup-input" id="cfgApiKey" placeholder="AIzaSy…">
+    <label class="setup-label">Auth Domain</label>
+    <input class="setup-input" id="cfgAuthDomain" placeholder="your-project.firebaseapp.com">
+    <label class="setup-label">Project ID</label>
+    <input class="setup-input" id="cfgProjectId" placeholder="your-project-id">
+    <label class="setup-label">App ID</label>
+    <input class="setup-input" id="cfgAppId" placeholder="1:123456:web:abc123">
+    <button class="setup-save" onclick="saveFirebaseConfig()">Save &amp; Continue</button>
+  </div>
+  <p class="setup-hint">These credentials only allow access to your own Firebase project and are safe to include in a public GitHub repo.<br><a href="https://console.firebase.google.com/" target="_blank">Open Firebase Console →</a></p>
+</div>
+
+<!-- Login -->
+<div id="loginScreen">
+  <div class="login-logo">🏕️</div>
+  <h1 class="login-title">Scout Inventory</h1>
+  <p class="login-sub">Sign in with your email to access<br>your unit's equipment inventory</p>
+  <div class="login-card">
+    <h2>Sign in</h2>
+    <p>Enter your email and we'll send a sign-in link — no password needed.</p>
+    <input class="login-input" type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email">
+    <button class="login-btn" id="loginBtn" onclick="sendMagicLink()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,12 2,6"></polyline></svg>
+      Send sign-in link
+    </button>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;width:100%;max-width:340px;margin-top:16px">
+    <div style="flex:1;height:1px;background:var(--gray-100)"></div>
+    <span style="font-size:12px;color:var(--gray-400)">or</span>
+    <div style="flex:1;height:1px;background:var(--gray-100)"></div>
+  </div>
+  <button class="demo-btn" onclick="launchDemo()">
+    Try demo — no account needed
+  </button>
+  <p style="font-size:12px;color:var(--gray-400);margin-top:8px;max-width:280px;text-align:center;line-height:1.5">Demo data is temporary and resets when you close the tab</p>
+</div>
+
+<!-- Check email -->
+<div id="checkEmailScreen">
+  <div class="big-icon">📬</div>
+  <h2 class="screen-title">Check your email</h2>
+  <p class="screen-sub">We sent a sign-in link to<br><span class="email-highlight" id="sentToEmail"></span><br><br>Click the link in the email to sign in. It may take a minute to arrive.</p>
+  <button class="outline-btn" onclick="sendMagicLink(true)">Resend link</button>
+  <button class="ghost-btn" onclick="showScreen(&#39;loginScreen&#39;)">← Use a different email</button>
+</div>
+
+<!-- Not allowed -->
+<div id="notAllowedScreen">
+  <div style="font-size:48px">🔒</div>
+  <h2 style="font-size:20px;font-weight:700">Access not granted</h2>
+  <p style="font-size:14px;color:var(--gray-400);line-height:1.6;max-width:280px">Your email isn't on the approved list. Ask your Scout leader to add you in the Firebase console.</p>
+  <button class="outline-btn" onclick="signOutUser()">Try a different email</button>
+</div>
+
+<!-- ══ Main App ══ -->
+<div id="appScreen">
+  <header class="app-header">
+    <h1>🏕️ Scout Inventory</h1>
+    <div class="header-right">
+      <span class="sync-dot" id="syncDot"></span>
+      <div class="user-chip" onclick="showUserMenu()">
+        <div class="user-avatar" id="userAvatarInitials">?</div>
+        <span id="userDisplayName">User</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls-bar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search items, rooms…" oninput="renderItems()">
+    </div>
+    <select class="filter-select" id="stockFilter" onchange="renderItems()">
+      <option value="all">All</option>
+      <option value="available">Available</option>
+      <option value="low">Low stock</option>
+      <option value="out">Out of stock</option>
+    </select>
+  </div>
+
+  <div class="cat-pills" id="catPills"></div>
+  <div class="stats-row" id="statsRow"></div>
+  <div id="itemsList" class="items-list"></div>
+
+  <button class="fab" onclick="openAddModal()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    Add Item
+  </button>
+</div>
+
+<!-- ══ Add / Edit Modal ══ -->
+<div class="overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 class="modal-title" id="addModalTitle">Add New Item</h2>
+
+    <div class="form-group">
+      <label class="form-label">Item Name</label>
+      <input class="form-input" id="itemName" placeholder="e.g. 3-Man Tent" maxlength="60">
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <select class="form-select" id="itemCategory">
+          <option value="Tents">🏕️ Tents</option>
+          <option value="Camping">⛺ Camping</option>
+          <option value="Cooking">🍳 Cooking</option>
+          <option value="Games">🎮 Games</option>
+          <option value="Stationery">✏️ Stationery</option>
+          <option value="First Aid">🩺 First Aid</option>
+          <option value="Navigation">🧭 Navigation</option>
+          <option value="Safety">🦺 Safety</option>
+          <option value="Transport">🎒 Transport</option>
+          <option value="Other">📦 Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Total Stock</label>
+        <input class="form-input" id="itemTotal" type="number" min="1" value="1">
+      </div>
+    </div>
+
+    <!-- Location section -->
+    <div class="location-section">
+      <div class="location-section-title">📍 Storage Location</div>
+      <div class="form-row">
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Room</label>
+          <input class="form-input" id="itemRoom" placeholder="e.g. Equipment Shed" list="roomSuggestions">
+          <datalist id="roomSuggestions"></datalist>
+          <div class="form-hint">Building or room name</div>
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label">Location in Room</label>
+          <input class="form-input" id="itemLocation" placeholder="e.g. Shelf B, Row 2">
+          <div class="form-hint">Shelf, box, cupboard…</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Icon</label>
+      <div class="emoji-grid" id="emojiGrid"></div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Notes (optional)</label>
+      <input class="form-input" id="itemNotes" placeholder="e.g. Check gas before use">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal(&#39;addModal&#39;)">Cancel</button>
+      <button class="btn-danger" id="deleteItemBtn" style="display:none" onclick="deleteCurrentItem()">Delete</button>
+      <button class="btn-primary" onclick="saveItem()">Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Checkout Modal ══ -->
+<div class="overlay" id="checkoutModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h2 class="modal-title" id="checkoutTitle">Check Out</h2>
+    <p style="font-size:14px;color:var(--gray-400);margin-bottom:4px" id="checkoutAvailText"></p>
+    <p style="font-size:13px;color:var(--gray-600);margin-bottom:16px" id="checkoutLocationText"></p>
+    <div class="form-group">
+      <label class="form-label">How many?</label>
+      <div class="qty-selector">
+        <button class="qty-btn" onclick="changeQty(-1)">−</button>
+        <div class="qty-display" id="checkoutQtyDisplay">1</div>
+        <button class="qty-btn" onclick="changeQty(1)">+</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Purpose (optional)</label>
+      <input class="form-input" id="checkoutNote" placeholder="e.g. Summer Camp 2025">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal(&#39;checkoutModal&#39;)">Cancel</button>
+      <button class="btn-primary" style="background:var(--amber)" onclick="confirmCheckout()">✓ Confirm Check Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ User / Loans Modal ══ -->
+<div class="overlay" id="userModal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px">
+      <div id="userModalAvatar" style="width:52px;height:52px;border-radius:50%;background:var(--green-light);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--green)"></div>
+      <div>
+        <div style="font-size:17px;font-weight:600" id="userModalName"></div>
+        <div style="font-size:13px;color:var(--gray-400)" id="userModalEmail"></div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--gray-100);padding-top:16px">
+      <div style="font-size:12px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">All Active Loans</div>
+      <div id="userLoansContainer"></div>
+    </div>
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn-secondary" onclick="closeModal(&#39;userModal&#39;)">Close</button>
+      <button class="btn-danger" onclick="signOutUser()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+// ══════════════════════════════════════════════════════════════
+//  ▼▼▼  PASTE YOUR FIREBASE CONFIG VALUES HERE  ▼▼▼
+//  (or leave blank and use the setup UI on first load)
+// ══════════════════════════════════════════════════════════════
+const HARDCODED_CONFIG = {
+  apiKey: "AIzaSyAXqURlkGn_B-CMiwyt4EvSpkqagWHuV6s",
+  authDomain: "invent30cs.firebaseapp.com",
+  projectId: "invent30cs",
+  appId: "1:177552995766:web:e7f04e21480d8a5fa13d17"
+};
+// ══════════════════════════════════════════════════════════════
+
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import {
+  getAuth, isSignInWithEmailLink, sendSignInLinkToEmail,
+  signInWithEmailLink, onAuthStateChanged, signOut
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import {
+  getFirestore, collection, doc, setDoc, updateDoc,
+  deleteDoc, onSnapshot, query, getDoc
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ── Config resolution
+const CFG_KEY = 'scout_fb_config_v1';
+function getConfig() {
+  if (HARDCODED_CONFIG.apiKey) return HARDCODED_CONFIG;
+  try { return JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); } catch { return null; }
+}
+
+window.saveFirebaseConfig = function() {
+  const cfg = {
+    apiKey:      document.getElementById('cfgApiKey').value.trim(),
+    authDomain:  document.getElementById('cfgAuthDomain').value.trim(),
+    projectId:   document.getElementById('cfgProjectId').value.trim(),
+    appId:       document.getElementById('cfgAppId').value.trim()
+  };
+  if (!cfg.apiKey || !cfg.projectId) { showToast('Please fill in all fields'); return; }
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  location.reload();
+};
+
+// ── Boot
+const config = getConfig();
+if (!config) {
+  document.getElementById('loadingScreen').style.display = 'none';
+  document.getElementById('setupScreen').style.display = 'flex';
+} else {
+  bootApp(config);
+}
+
+// ══════════════════════════════════════════
+//  IN-MEMORY STATE (synced from Firestore)
+// ══════════════════════════════════════════
+const state = {
+  items: [],
+  loans: [],
+  activeCategory: 'All',
+  editingItemId: null,
+  checkoutItemId: null,
+  checkoutQty: 1,
+};
+
+// ══════════════════════════════════════════
+//  FIREBASE BOOT
+// ══════════════════════════════════════════
+function bootApp(cfg) {
+  const app = initializeApp(cfg);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  const actionCodeSettings = {
+    url: window.location.href.split('?')[0],
+    handleCodeInApp: true
+  };
+
+  let currentUser = null;
+  let unsubItems  = null;
+  let unsubLoans  = null;
+
+  // ── Auth state watcher
+  onAuthStateChanged(auth, async (fbUser) => {
+    if (!fbUser) {
+      if (isSignInWithEmailLink(auth, window.location.href)) {
+        await handleMagicLinkLanding();
+        return;
+      }
+      showScreen('loginScreen');
+      return;
+    }
+    // Check allowlist
+    const emailKey = fbUser.email.replace(/\./g, '_');
+    const allowDoc = await getDoc(doc(db, 'allowedUsers', emailKey));
+    if (!allowDoc.exists()) {
+      showScreen('notAllowedScreen');
+      await signOut(auth);
+      return;
+    }
+    currentUser = fbUser;
+    launchApp(fbUser);
+  });
+
+  async function handleMagicLinkLanding() {
+    let email = localStorage.getItem('emailForSignIn');
+    if (!email) email = window.prompt('Please confirm your email address to sign in:');
+    if (!email) { showScreen('loginScreen'); return; }
+    try {
+      await signInWithEmailLink(auth, email, window.location.href);
+      localStorage.removeItem('emailForSignIn');
+      history.replaceState({}, '', location.pathname);
+    } catch(e) {
+      showToast('Sign-in link expired or invalid. Please try again.');
+      showScreen('loginScreen');
+    }
+  }
+
+  // ── Send magic link
+  window.sendMagicLink = async function(resend = false) {
+    const email = resend
+      ? localStorage.getItem('emailForSignIn')
+      : document.getElementById('loginEmail').value.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      showToast('Please enter a valid email address'); return;
+    }
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      localStorage.setItem('emailForSignIn', email);
+      document.getElementById('sentToEmail').textContent = email;
+      showScreen('checkEmailScreen');
+    } catch(e) {
+      showToast('Could not send email — check Firebase setup');
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg> Send sign-in link`;
+    }
+  };
+
+  window.signOutUser = async function() {
+    if (unsubItems) unsubItems();
+    if (unsubLoans) unsubLoans();
+    await signOut(auth);
+    closeModal('userModal');
+    state.items = []; state.loans = [];
+    showScreen('loginScreen');
+  };
+
+  // ── Launch main app
+  function launchApp(user) {
+    const parts    = (user.displayName || user.email.split('@')[0]).split(' ');
+    const initials = parts.map(p => p[0]).join('').toUpperCase().slice(0, 2);
+    const name     = user.displayName || user.email.split('@')[0];
+    document.getElementById('userDisplayName').textContent   = name.split(' ')[0];
+    document.getElementById('userAvatarInitials').textContent = initials;
+    document.getElementById('userModalAvatar').textContent    = initials;
+    document.getElementById('userModalName').textContent      = name;
+    document.getElementById('userModalEmail').textContent     = user.email;
+    showScreen('appScreen');
+    setSyncDot('syncing');
+
+    // Real-time listeners
+    unsubItems = onSnapshot(query(collection(db, 'items')), snap => {
+      state.items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderAll();
+      setSyncDot('ok');
+      updateRoomSuggestions();
+    }, err => { console.error(err); setSyncDot(''); });
+
+    unsubLoans = onSnapshot(query(collection(db, 'loans')), snap => {
+      state.loans = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderAll();
+    });
+  }
+
+  // ── Firestore writes
+  window.saveItem = async function() {
+    const name     = document.getElementById('itemName').value.trim();
+    const category = document.getElementById('itemCategory').value;
+    const total    = parseInt(document.getElementById('itemTotal').value) || 1;
+    const room     = document.getElementById('itemRoom').value.trim();
+    const location = document.getElementById('itemLocation').value.trim();
+    const notes    = document.getElementById('itemNotes').value.trim();
+    if (!name) { showToast('Please enter an item name'); return; }
+    setSyncDot('syncing');
+    try {
+      const data = { name, category, total, room, location, notes, emoji: selectedEmoji };
+      if (state.editingItemId) {
+        await setDoc(doc(db, 'items', state.editingItemId), data, { merge: true });
+        showToast('✓ Item updated');
+      } else {
+        await setDoc(doc(db, 'items', generateId()), { ...data, created: Date.now() });
+        showToast('✓ Item added');
+      }
+      closeModal('addModal');
+    } catch(e) { showToast('Error saving — check your connection'); console.error(e); }
+  };
+
+  window.deleteCurrentItem = async function() {
+    const item = state.items.find(i => i.id === state.editingItemId);
+    if (!confirm(`Delete "${item.name}"? This will also remove all loan records for it.`)) return;
+    setSyncDot('syncing');
+    try {
+      await deleteDoc(doc(db, 'items', state.editingItemId));
+      const loanIds = state.loans.filter(l => l.itemId === state.editingItemId).map(l => l.id);
+      await Promise.all(loanIds.map(id => deleteDoc(doc(db, 'loans', id))));
+      closeModal('addModal');
+      showToast('Item deleted');
+    } catch(e) { showToast('Error deleting'); console.error(e); }
+  };
+
+  window.confirmCheckout = async function() {
+    const item = state.items.find(i => i.id === state.checkoutItemId);
+    const note = document.getElementById('checkoutNote').value.trim();
+    setSyncDot('syncing');
+    try {
+      await setDoc(doc(db, 'loans', generateId()), {
+        itemId:       state.checkoutItemId,
+        userId:       currentUser.uid,
+        userEmail:    currentUser.email,
+        userName:     currentUser.displayName || currentUser.email.split('@')[0],
+        qty:          state.checkoutQty,
+        note,
+        checkedOutAt: Date.now(),
+        returnedAt:   null
+      });
+      closeModal('checkoutModal');
+      showToast(`✓ ${state.checkoutQty}× ${item.name} checked out`);
+    } catch(e) { showToast('Error — check your connection'); console.error(e); }
+  };
+
+  window.returnLoan = async function(loanId) {
+    const loan = state.loans.find(l => l.id === loanId);
+    const item = state.items.find(i => i.id === loan.itemId);
+    setSyncDot('syncing');
+    try {
+      await updateDoc(doc(db, 'loans', loanId), { returnedAt: Date.now() });
+      showToast(`✓ ${loan.qty}× ${item.name} returned`);
+    } catch(e) { showToast('Error — check your connection'); console.error(e); }
+  };
+
+  window.quickReturn = async function(itemId) {
+    const loans = getActiveLoans(itemId);
+    const item  = state.items.find(i => i.id === itemId);
+    if (!loans.length) return;
+    setSyncDot('syncing');
+    try {
+      await Promise.all(loans.map(l => updateDoc(doc(db, 'loans', l.id), { returnedAt: Date.now() })));
+      showToast(`✓ ${item.name} returned`);
+    } catch(e) { showToast('Error — check your connection'); console.error(e); }
+  };
+}
+
+// ══════════════════════════════════════════
+//  COMPUTED HELPERS
+// ══════════════════════════════════════════
+function getActiveLoans(itemId) { return state.loans.filter(l => l.itemId === itemId && !l.returnedAt); }
+function getCheckedOut(itemId)  { return getActiveLoans(itemId).reduce((s, l) => s + l.qty, 0); }
+function getAvailable(itemId) {
+  const item = state.items.find(i => i.id === itemId);
+  return item ? Math.max(0, item.total - getCheckedOut(itemId)) : 0;
+}
+
+// ══════════════════════════════════════════
+//  SCREEN MANAGEMENT
+// ══════════════════════════════════════════
+window.showScreen = function(id) {
+  const screens = ['loadingScreen','setupScreen','loginScreen','checkEmailScreen','notAllowedScreen','appScreen'];
+  screens.forEach(s => {
+    const el = document.getElementById(s);
+    if (!el) return;
+    el.style.display = s === id ? (s === 'appScreen' ? 'block' : 'flex') : 'none';
+  });
+};
+
+// ══════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════
+const CAT_ICONS = { Tents:'🏕️', Camping:'⛺', Cooking:'🍳', Games:'🎮', Stationery:'✏️', 'First Aid':'🩺', Navigation:'🧭', Safety:'🦺', Transport:'🎒', Other:'📦' };
+
+window.renderAll = function() { renderStats(); renderCatPills(); renderItems(); };
+
+function renderStats() {
+  const total = state.items.length;
+  const out   = state.items.filter(i => getAvailable(i.id) === 0 && i.total > 0).length;
+  const low   = state.items.filter(i => { const a = getAvailable(i.id); return a > 0 && a <= Math.ceil(i.total * 0.25); }).length;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card"><div class="stat-value">${total}</div><div class="stat-label">Items</div></div>
+    <div class="stat-card"><div class="stat-value warn">${low}</div><div class="stat-label">Low Stock</div></div>
+    <div class="stat-card"><div class="stat-value danger">${out}</div><div class="stat-label">Out of Stock</div></div>`;
+}
+
+function renderCatPills() {
+  const cats = ['All', ...[...new Set(state.items.map(i => i.category))].sort()];
+  document.getElementById('catPills').innerHTML = cats.map(c =>
+    `<button class="cat-pill ${c === state.activeCategory ? 'active' : ''}" onclick="setCategory('${c.replace(/'/g,"\\'")}')">
+      ${c === 'All' ? '🗂️ All' : (CAT_ICONS[c] || '📦') + ' ' + c}
+    </button>`
+  ).join('');
+}
+
+window.setCategory = function(cat) { state.activeCategory = cat; renderCatPills(); renderItems(); };
+
+window.renderItems = function() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const sf     = document.getElementById('stockFilter').value;
+
+  let items = state.items.filter(item => {
+    if (state.activeCategory !== 'All' && item.category !== state.activeCategory) return false;
+    if (search) {
+      const haystack = [item.name, item.category, item.room, item.location, item.notes].join(' ').toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+    const a = getAvailable(item.id);
+    if (sf === 'available' && a === 0) return false;
+    if (sf === 'out' && a > 0) return false;
+    if (sf === 'low' && (a === 0 || a > Math.ceil(item.total * 0.25))) return false;
+    return true;
+  });
+
+  const el = document.getElementById('itemsList');
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No items found</div><p style="font-size:14px;color:var(--gray-400)">Try adjusting your search or add a new item.</p></div>`;
+    return;
+  }
+  el.innerHTML = items.map(itemCardHTML).join('');
+};
+
+function itemCardHTML(item) {
+  const avail = getAvailable(item.id);
+  const co    = getCheckedOut(item.id);
+  const isLow = avail > 0 && avail <= Math.ceil(item.total * 0.25);
+  const isOut = avail === 0 && item.total > 0;
+  const sc    = isOut ? 'out' : isLow ? 'low' : '';
+  const loans = getActiveLoans(item.id);
+
+  // Location display
+  const locParts = [item.room, item.location].filter(Boolean);
+  const locHTML  = locParts.length
+    ? `<span class="location-tag">📍 ${escHtml(locParts.join(' › '))}</span>`
+    : '';
+
+  const loansHTML = loans.length ? `
+    <div class="loans-list">
+      ${loans.map(l => `
+        <div class="loan-chip">
+          <div>
+            <span class="loan-name">${escHtml(l.userName)}</span>
+            ${l.note ? ` · <span style="color:var(--gray-400)">${escHtml(l.note)}</span>` : ''}
+            <span style="margin-left:6px;font-weight:600;color:var(--amber)">×${l.qty}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="loan-date">${formatDate(l.checkedOutAt)}</span>
+            <button class="loan-return-btn" onclick="returnLoan('${l.id}')">Return</button>
+          </div>
+        </div>`).join('')}
+    </div>` : '';
+
+  return `
+    <div class="item-card">
+      <div class="item-card-body">
+        <div class="item-icon-wrap ${sc}">${item.emoji || '📦'}</div>
+        <div class="item-info">
+          <div class="item-name">${escHtml(item.name)}</div>
+          <div class="item-meta">
+            <span>${escHtml(item.category)}</span>
+            ${item.notes ? `<span class="meta-sep">·</span><span>${escHtml(item.notes)}</span>` : ''}
+          </div>
+          ${locHTML}
+          <div class="item-stock">
+            <span class="stock-badge ${sc}">${avail} available</span>
+            <span class="stock-of">of ${item.total}${co > 0 ? ` · ${co} out` : ''}</span>
+          </div>
+        </div>
+        <button onclick="openEditModal('${item.id}')"
+          style="background:none;border:none;cursor:pointer;padding:4px;color:var(--gray-400);font-size:18px;flex-shrink:0;line-height:1"
+          title="Edit item">⋯</button>
+      </div>
+      ${loansHTML}
+      <div class="item-actions">
+        <button class="action-btn checkout" onclick="openCheckout('${item.id}')" ${avail === 0 ? 'disabled' : ''}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          Check Out
+        </button>
+        <div class="btn-divider"></div>
+        <button class="action-btn checkin" onclick="quickReturn('${item.id}')" ${co === 0 ? 'disabled' : ''}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          Check In
+        </button>
+      </div>
+    </div>`;
+}
+
+// ══════════════════════════════════════════
+//  CHECKOUT MODAL
+// ══════════════════════════════════════════
+window.openCheckout = function(itemId) {
+  const item  = state.items.find(i => i.id === itemId);
+  const avail = getAvailable(itemId);
+  state.checkoutItemId = itemId;
+  state.checkoutQty    = 1;
+  document.getElementById('checkoutTitle').textContent     = `Check Out: ${item.name}`;
+  document.getElementById('checkoutAvailText').textContent = `${avail} available of ${item.total} total`;
+  // Show location hint so people know where to go fetch it
+  const locParts = [item.room, item.location].filter(Boolean);
+  document.getElementById('checkoutLocationText').textContent = locParts.length ? `📍 ${locParts.join(' › ')}` : '';
+  document.getElementById('checkoutQtyDisplay').textContent   = '1';
+  document.getElementById('checkoutNote').value = '';
+  document.getElementById('checkoutModal').classList.add('open');
+};
+
+window.changeQty = function(delta) {
+  const avail  = getAvailable(state.checkoutItemId);
+  state.checkoutQty = Math.max(1, Math.min(avail, state.checkoutQty + delta));
+  document.getElementById('checkoutQtyDisplay').textContent = state.checkoutQty;
+};
+
+// ══════════════════════════════════════════
+//  ADD / EDIT MODAL
+// ══════════════════════════════════════════
+const EMOJI_LIST = ['⛺','🏕️','🔦','🪓','🧭','🪢','🎒','🛶','🍳','🥄','🍽️','☕','🎮','🃏','🎯','⚽','✏️','📝','📋','🖊️','🩺','💊','🩹','🦺','🔧','🔨','🪛','🔋','📡','🧯','🪣','🌧️','🛟','🏆','🎖️','📦'];
+let selectedEmoji = '📦';
+
+function buildEmojiGrid() {
+  document.getElementById('emojiGrid').innerHTML = EMOJI_LIST.map(e =>
+    `<button class="emoji-btn ${e === selectedEmoji ? 'selected' : ''}" onclick="selectEmoji('${e}')">${e}</button>`
+  ).join('');
+}
+
+window.selectEmoji = function(e) {
+  selectedEmoji = e;
+  document.querySelectorAll('.emoji-btn').forEach(b => b.classList.toggle('selected', b.textContent.trim() === e));
+};
+
+// Keep a datalist of known rooms for autocomplete
+function updateRoomSuggestions() {
+  const rooms = [...new Set(state.items.map(i => i.room).filter(Boolean))].sort();
+  document.getElementById('roomSuggestions').innerHTML = rooms.map(r => `<option value="${escHtml(r)}">`).join('');
+}
+
+window.openAddModal = function() {
+  state.editingItemId = null;
+  document.getElementById('addModalTitle').textContent = 'Add New Item';
+  document.getElementById('itemName').value     = '';
+  document.getElementById('itemCategory').value = 'Other';
+  document.getElementById('itemTotal').value    = '1';
+  document.getElementById('itemRoom').value     = '';
+  document.getElementById('itemLocation').value = '';
+  document.getElementById('itemNotes').value    = '';
+  document.getElementById('deleteItemBtn').style.display = 'none';
+  selectedEmoji = '📦';
+  buildEmojiGrid();
+  document.getElementById('addModal').classList.add('open');
+  setTimeout(() => document.getElementById('itemName').focus(), 300);
+};
+
+window.openEditModal = function(itemId) {
+  const item = state.items.find(i => i.id === itemId);
+  state.editingItemId = itemId;
+  document.getElementById('addModalTitle').textContent = 'Edit Item';
+  document.getElementById('itemName').value     = item.name;
+  document.getElementById('itemCategory').value = item.category;
+  document.getElementById('itemTotal').value    = item.total;
+  document.getElementById('itemRoom').value     = item.room     || '';
+  document.getElementById('itemLocation').value = item.location || '';
+  document.getElementById('itemNotes').value    = item.notes    || '';
+  document.getElementById('deleteItemBtn').style.display = 'block';
+  selectedEmoji = item.emoji || '📦';
+  buildEmojiGrid();
+  document.getElementById('addModal').classList.add('open');
+};
+
+// ══════════════════════════════════════════
+//  USER MODAL
+// ══════════════════════════════════════════
+window.showUserMenu = function() {
+  const activeLoans = state.loans.filter(l => !l.returnedAt);
+  document.getElementById('userLoansContainer').innerHTML = !activeLoans.length
+    ? '<p style="font-size:14px;color:var(--gray-400)">No active loans.</p>'
+    : activeLoans.map(l => {
+        const item = state.items.find(i => i.id === l.itemId);
+        const loc  = [item?.room, item?.location].filter(Boolean).join(' › ');
+        return `<div class="loan-chip" style="margin-bottom:6px;flex-wrap:wrap;gap:4px">
+          <div style="flex:1;min-width:0">
+            <span class="loan-name">${item ? escHtml(item.name) : 'Unknown'}</span>
+            <span style="font-weight:600;color:var(--amber);margin-left:6px">×${l.qty}</span>
+            ${l.note ? ` · <span style="color:var(--gray-400)">${escHtml(l.note)}</span>` : ''}
+            <br><span style="font-size:11px;color:var(--gray-400)">${escHtml(l.userName)}</span>
+            ${loc ? `<span style="font-size:11px;color:var(--gray-400)"> · 📍 ${escHtml(loc)}</span>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+            <span class="loan-date">${formatDate(l.checkedOutAt)}</span>
+            <button class="loan-return-btn" onclick="returnLoan('${l.id}');showUserMenu()">Return</button>
+          </div>
+        </div>`;
+      }).join('');
+  document.getElementById('userModal').classList.add('open');
+};
+
+// ══════════════════════════════════════════
+//  UTILITIES
+// ══════════════════════════════════════════
+window.closeModal = function(id) { document.getElementById(id).classList.remove('open'); };
+
+document.querySelectorAll('.overlay').forEach(el =>
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); })
+);
+
+function setSyncDot(s) {
+  const d = document.getElementById('syncDot');
+  d.className = 'sync-dot' + (s ? ' ' + s : '');
+}
+window.setSyncDot = setSyncDot;
+
+function escHtml(str) {
+  return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatDate(ts) {
+  const diff = Math.floor((Date.now() - ts) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Yesterday';
+  if (diff < 7)  return `${diff}d ago`;
+  return new Date(ts).toLocaleDateString('en-GB', { day:'numeric', month:'short' });
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+let toastTimer;
+window.showToast = function(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+};
+function showToast(msg) { window.showToast(msg); }
+
+// ══════════════════════════════════════════
+//  DEMO MODE  (no Firebase required)
+// ══════════════════════════════════════════
+window.launchDemo = function() {
+  // Stub out write functions so they work on in-memory state only
+  window.saveItem = async function() {
+    const name     = document.getElementById('itemName').value.trim();
+    const category = document.getElementById('itemCategory').value;
+    const total    = parseInt(document.getElementById('itemTotal').value) || 1;
+    const room     = document.getElementById('itemRoom').value.trim();
+    const location = document.getElementById('itemLocation').value.trim();
+    const notes    = document.getElementById('itemNotes').value.trim();
+    if (!name) { showToast('Please enter an item name'); return; }
+    if (state.editingItemId) {
+      const item = state.items.find(i => i.id === state.editingItemId);
+      Object.assign(item, { name, category, total, room, location, notes, emoji: selectedEmoji });
+      showToast('✓ Item updated');
+    } else {
+      state.items.push({ id: generateId(), name, category, total, room, location, notes, emoji: selectedEmoji, created: Date.now() });
+      showToast('✓ Item added');
+    }
+    closeModal('addModal'); renderAll(); updateRoomSuggestions();
+  };
+  window.deleteCurrentItem = async function() {
+    const item = state.items.find(i => i.id === state.editingItemId);
+    if (!confirm(`Delete "${item.name}"?`)) return;
+    state.items  = state.items.filter(i => i.id !== state.editingItemId);
+    state.loans  = state.loans.filter(l => l.itemId !== state.editingItemId);
+    closeModal('addModal'); showToast('Item deleted'); renderAll();
+  };
+  window.confirmCheckout = async function() {
+    const item = state.items.find(i => i.id === state.checkoutItemId);
+    const note = document.getElementById('checkoutNote').value.trim();
+    state.loans.push({ id: generateId(), itemId: state.checkoutItemId, userId: 'demo', userEmail: 'demo@scouts.org', userName: 'Demo Leader', qty: state.checkoutQty, note, checkedOutAt: Date.now(), returnedAt: null });
+    closeModal('checkoutModal'); showToast(`✓ ${state.checkoutQty}× ${item.name} checked out`); renderAll();
+  };
+  window.returnLoan = async function(loanId) {
+    const loan = state.loans.find(l => l.id === loanId);
+    const item = state.items.find(i => i.id === loan.itemId);
+    loan.returnedAt = Date.now();
+    showToast(`✓ ${loan.qty}× ${item.name} returned`); renderAll();
+  };
+  window.quickReturn = async function(itemId) {
+    const loans = getActiveLoans(itemId);
+    const item  = state.items.find(i => i.id === itemId);
+    loans.forEach(l => { l.returnedAt = Date.now(); });
+    showToast(`✓ ${item.name} returned`); renderAll();
+  };
+  window.signOutUser = function() {
+    closeModal('userModal');
+    state.items = []; state.loans = [];
+    showScreen('loginScreen');
+  };
+
+  // Seed sample inventory
+  const g = generateId;
+  const now = Date.now();
+  state.items = [
+    { id:g(), name:'3-Man Tent',       category:'Tents',      emoji:'⛺', total:8,  room:'Equipment Shed', location:'Rack A, Left',    notes:'', created:now },
+    { id:g(), name:'6-Man Tent',       category:'Tents',      emoji:'🏕️', total:3,  room:'Equipment Shed', location:'Rack A, Right',   notes:'', created:now },
+    { id:g(), name:'Sleeping Bag',     category:'Camping',    emoji:'🎒', total:12, room:'Equipment Shed', location:'Shelf B, Row 1',  notes:'3-season', created:now },
+    { id:g(), name:'Camping Stove',    category:'Cooking',    emoji:'🍳', total:6,  room:'Equipment Shed', location:'Shelf B, Row 2',  notes:'Check gas before use', created:now },
+    { id:g(), name:'Mess Tin Set',     category:'Cooking',    emoji:'🍽️', total:15, room:'Equipment Shed', location:'Shelf C',         notes:'', created:now },
+    { id:g(), name:'Compass',          category:'Navigation', emoji:'🧭', total:10, room:'Main Hall',      location:'Cupboard 1',      notes:'Silva type', created:now },
+    { id:g(), name:'Torch',            category:'Camping',    emoji:'🔦', total:14, room:'Main Hall',      location:'Cupboard 1',      notes:'', created:now },
+    { id:g(), name:'First Aid Kit',    category:'First Aid',  emoji:'🩺', total:4,  room:'Main Hall',      location:'Wall cabinet',    notes:'Check expiry quarterly', created:now },
+    { id:g(), name:'Hi-Vis Vest',      category:'Safety',     emoji:'🦺', total:20, room:'Main Hall',      location:'Cupboard 2',      notes:'', created:now },
+    { id:g(), name:'Playing Cards',    category:'Games',      emoji:'🃏', total:6,  room:'Games Room',     location:'Top shelf',       notes:'', created:now },
+    { id:g(), name:'Skipping Rope',    category:'Games',      emoji:'🎯', total:8,  room:'Games Room',     location:'Blue box',        notes:'', created:now },
+    { id:g(), name:'Pen Pack (×10)',   category:'Stationery', emoji:'✏️', total:10, room:'Main Hall',      location:'Stationery drawer',notes:'', created:now },
+    { id:g(), name:'A4 Clipboard',     category:'Stationery', emoji:'📋', total:8,  room:'Main Hall',      location:'Stationery drawer',notes:'', created:now },
+    { id:g(), name:'Rope 10m',         category:'Camping',    emoji:'🪢', total:8,  room:'Equipment Shed', location:'Shelf D',         notes:'', created:now },
+    { id:g(), name:'Tarpaulin',        category:'Camping',    emoji:'🌧️', total:5,  room:'Equipment Shed', location:'Shelf D',         notes:'', created:now },
+  ];
+  // Add a couple of active loans so check-in/out is visible
+  const tentId    = state.items[0].id;
+  const compassId = state.items[5].id;
+  const torchId   = state.items[6].id;
+  state.loans = [
+    { id:g(), itemId:tentId,    userId:'demo', userEmail:'demo@scouts.org', userName:'Demo Leader', qty:2, note:'Summer Camp 2025',  checkedOutAt: now - 86400000*2, returnedAt:null },
+    { id:g(), itemId:compassId, userId:'u2',   userEmail:'akela@scouts.org',userName:'Akela',       qty:4, note:'Navigation hike',    checkedOutAt: now - 86400000,   returnedAt:null },
+    { id:g(), itemId:torchId,   userId:'u3',   userEmail:'baloo@scouts.org', userName:'Baloo',      qty:3, note:'Night hike',         checkedOutAt: now - 86400000*5, returnedAt:null },
+  ];
+
+  // Set up header
+  document.getElementById('userDisplayName').textContent    = 'Demo';
+  document.getElementById('userAvatarInitials').textContent = 'DL';
+  document.getElementById('userModalAvatar').textContent    = 'DL';
+  document.getElementById('userModalName').textContent      = 'Demo Leader';
+  document.getElementById('userModalEmail').textContent     = 'demo@scouts.org · Demo Mode';
+  document.getElementById('syncDot').className = 'sync-dot ok';
+
+  showScreen('appScreen');
+  renderAll();
+  updateRoomSuggestions();
+  showToast('👋 Demo mode — changes are not saved');
+};
+
+</script>
+
+
+</body></html>
