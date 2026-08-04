@@ -3,20 +3,22 @@
 <head>
 <!--
 ╔══════════════════════════════════════════════════════════════════╗
-║               SCOUT INVENTORY — SETUP GUIDE                     ║
+║               INVENTORY — SETUP GUIDE                     ║
 ╠══════════════════════════════════════════════════════════════════╣
 ║                                                                  ║
 ║  ONE-TIME FIREBASE SETUP (~15 minutes, completely free)         ║
 ║                                                                  ║
 ║  STEP 1 — Create Firebase project                               ║
 ║    1. Go to https://console.firebase.google.com                  ║
-║    2. Click "Add project" → name it (e.g. "scout-inventory")    ║
+║    2. Click "Add project" → name it (e.g. "inventory")    ║
 ║    3. Disable Google Analytics → Create project                  ║
 ║                                                                  ║
 ║  STEP 2 — Enable Authentication                                  ║
 ║    1. Left menu: Build → Authentication → Get started            ║
-║    2. Sign-in method tab → Enable "Email/Password"              ║
-║    3. Also enable "Email link (passwordless sign-in)"           ║
+║    2. Sign-in method tab → Click Email/Password                  ║
+║    3. Enable the top toggle (Email/Password) → Save             ║
+║    4. To add a user: Authentication → Users → Add user          ║
+║       Enter their email and a temporary password                 ║
 ║                                                                  ║
 ║  STEP 3 — Create Firestore database                             ║
 ║    1. Left menu: Build → Firestore Database → Create database   ║
@@ -60,8 +62,8 @@
 ║    1. Start collection → ID: allowedUsers                        ║
 ║    2. Add document:                                              ║
 ║       Document ID = email with dots replaced by underscores      ║
-║       e.g.  jane@scouts.org  becomes  jane@scouts_org           ║
-║       Field: email | Type: string | Value: jane@scouts.org       ║
+║       e.g.  jane@abc.org  becomes  jane@abc_org           ║
+║       Field: email | Type: string | Value: jane@abc.org       ║
 ║    3. Repeat for each leader you want to allow                  ║
 ║                                                                  ║
 ║  STEP 8 — Deploy to GitHub Pages (free)                         ║
@@ -77,7 +79,7 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Scout Inventory</title>
+<title>Inventory</title>
 <style>
   :root {
     --green:#3B6D11; --green-light:#EAF3DE; --green-mid:#639922; --green-dark:#27500A;
@@ -265,7 +267,7 @@
 <div id="loadingScreen">
   <div style="font-size:40px">🏕️</div>
   <div class="spinner"></div>
-  <div style="font-size:14px;color:var(--gray-400)">Loading Scout Inventory…</div>
+  <div style="font-size:14px;color:var(--gray-400)">Loading Inventory…</div>
 </div>
 
 <!-- Setup (no Firebase config yet) -->
@@ -290,16 +292,18 @@
 <!-- Login -->
 <div id="loginScreen">
   <div class="login-logo">🏕️</div>
-  <h1 class="login-title">Scout Inventory</h1>
-  <p class="login-sub">Sign in with your email to access<br>your unit's equipment inventory</p>
+  <h1 class="login-title">Inventory</h1>
+  <p class="login-sub">Sign in to access your unit's equipment inventory</p>
   <div class="login-card">
     <h2>Sign in</h2>
-    <p>Enter your email and we'll send a sign-in link — no password needed.</p>
+    <p>Use the email and password your admin set up for you.</p>
     <input class="login-input" type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email">
-    <button class="login-btn" id="loginBtn" onclick="sendMagicLink()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
-      Send sign-in link
+    <input class="login-input" type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')signIn()">
+    <button class="login-btn" id="loginBtn" onclick="signIn()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+      Sign in
     </button>
+    <p id="loginError" style="font-size:13px;color:var(--red);margin-top:10px;display:none;text-align:center"></p>
   </div>
   <div style="display:flex;align-items:center;gap:12px;width:100%;max-width:340px;margin-top:16px">
     <div style="flex:1;height:1px;background:var(--gray-100)"></div>
@@ -312,20 +316,14 @@
   <p style="font-size:12px;color:var(--gray-400);margin-top:8px;max-width:280px;text-align:center;line-height:1.5">Demo data is temporary and resets when you close the tab</p>
 </div>
 
-<!-- Check email -->
-<div id="checkEmailScreen">
-  <div class="big-icon">📬</div>
-  <h2 class="screen-title">Check your email</h2>
-  <p class="screen-sub">We sent a sign-in link to<br><span class="email-highlight" id="sentToEmail"></span><br><br>Click the link in the email to sign in. It may take a minute to arrive.</p>
-  <button class="outline-btn" onclick="sendMagicLink(true)">Resend link</button>
-  <button class="ghost-btn" onclick="showScreen('loginScreen')">← Use a different email</button>
-</div>
+<!-- Check email screen (unused - kept for screen switcher compatibility) -->
+<div id="checkEmailScreen" style="display:none"></div>
 
 <!-- Not allowed -->
 <div id="notAllowedScreen">
   <div style="font-size:48px">🔒</div>
   <h2 style="font-size:20px;font-weight:700">Access not granted</h2>
-  <p style="font-size:14px;color:var(--gray-400);line-height:1.6;max-width:280px">Your email isn't on the approved list. Ask your Scout leader to add you in the Firebase console.</p>
+  <p style="font-size:14px;color:var(--gray-400);line-height:1.6;max-width:280px">Your email isn't on the approved list and needs added to the Firebase console.</p>
   <button class="outline-btn" onclick="signOutUser()">Try a different email</button>
 </div>
 
@@ -499,8 +497,7 @@ const HARDCODED_CONFIG = {
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, isSignInWithEmailLink, sendSignInLinkToEmail,
-  signInWithEmailLink, onAuthStateChanged, signOut
+  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, doc, setDoc, updateDoc,
@@ -555,11 +552,6 @@ function bootApp(cfg) {
   const auth = getAuth(app);
   const db   = getFirestore(app);
 
-  const actionCodeSettings = {
-    url: window.location.href.split('?')[0],
-    handleCodeInApp: true
-  };
-
   let currentUser = null;
   let unsubItems  = null;
   let unsubLoans  = null;
@@ -567,10 +559,6 @@ function bootApp(cfg) {
   // ── Auth state watcher
   onAuthStateChanged(auth, async (fbUser) => {
     if (!fbUser) {
-      if (isSignInWithEmailLink(auth, window.location.href)) {
-        await handleMagicLinkLanding();
-        return;
-      }
       showScreen('loginScreen');
       return;
     }
@@ -587,43 +575,32 @@ function bootApp(cfg) {
     launchApp(fbUser);
   });
 
-  async function handleMagicLinkLanding() {
-    let email = localStorage.getItem('emailForSignIn');
-    if (!email) email = window.prompt('Please confirm your email address to sign in:');
-    if (!email) { showScreen('loginScreen'); return; }
+  // ── Email/password sign in
+  window.signIn = async function() {
+    const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
+    const password = document.getElementById('loginPassword').value;
+    const errEl    = document.getElementById('loginError');
+    const btn      = document.getElementById('loginBtn');
+    errEl.style.display = 'none';
+    if (!email || !password) { showLoginError('Please enter your email and password.'); return; }
+    btn.disabled = true; btn.textContent = 'Signing in…';
     try {
-      await signInWithEmailLink(auth, email, window.location.href);
-      localStorage.removeItem('emailForSignIn');
-      history.replaceState({}, '', location.pathname);
+      await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged handles the rest
     } catch(e) {
-      showToast('Sign-in link expired or invalid. Please try again.');
-      showScreen('loginScreen');
-    }
-  }
-
-  // ── Send magic link
-  window.sendMagicLink = async function(resend = false) {
-    const email = resend
-      ? localStorage.getItem('emailForSignIn')
-      : document.getElementById('loginEmail').value.trim().toLowerCase();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      showToast('Please enter a valid email address'); return;
-    }
-    const btn = document.getElementById('loginBtn');
-    btn.disabled = true; btn.textContent = 'Sending…';
-    try {
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      localStorage.setItem('emailForSignIn', email);
-      document.getElementById('sentToEmail').textContent = email;
-      showScreen('checkEmailScreen');
-    } catch(e) {
-      showToast('Could not send email — check Firebase setup');
-      console.error(e);
+      let msg = 'Incorrect email or password.';
+      if (e.code === 'auth/too-many-requests') msg = 'Too many attempts — try again later.';
+      if (e.code === 'auth/user-disabled')     msg = 'This account has been disabled.';
+      showLoginError(msg);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg> Send sign-in link`;
+      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Sign in`;
     }
   };
+  function showLoginError(msg) {
+    const el = document.getElementById('loginError');
+    el.textContent = msg; el.style.display = 'block';
+  }
 
   window.signOutUser = async function() {
     if (unsubItems) unsubItems();
