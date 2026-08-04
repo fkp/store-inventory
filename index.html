@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- saved from url=(0055)file:///C:/Users/frase/Downloads/scout-inventory_4.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<html lang="en">
+<head>
 <!--
 ╔══════════════════════════════════════════════════════════════════╗
 ║               SCOUT INVENTORY — SETUP GUIDE                     ║
@@ -35,14 +35,12 @@
 ║        match /items/{id} {                                       ║
 ║          allow read, write: if request.auth != null &&           ║
 ║            exists(/databases/$(database)/documents/              ║
-║            allowedUsers/$(request.auth.token.email               ║
-║            .replace('.','_')));                                   ║
+║            allowedUsers/$(request.auth.uid));                    ║
 ║        }                                                         ║
 ║        match /loans/{id} {                                       ║
 ║          allow read, write: if request.auth != null &&           ║
 ║            exists(/databases/$(database)/documents/              ║
-║            allowedUsers/$(request.auth.token.email               ║
-║            .replace('.','_')));                                   ║
+║            allowedUsers/$(request.auth.uid));                    ║
 ║        }                                                         ║
 ║      }                                                           ║
 ║    }                                                             ║
@@ -77,7 +75,7 @@
 ║                                                                  ║
 ╚══════════════════════════════════════════════════════════════════╝
 -->
-
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Scout Inventory</title>
 <style>
@@ -264,14 +262,14 @@
 <body>
 
 <!-- Loading -->
-<div id="loadingScreen" style="display: none;">
+<div id="loadingScreen">
   <div style="font-size:40px">🏕️</div>
   <div class="spinner"></div>
   <div style="font-size:14px;color:var(--gray-400)">Loading Scout Inventory…</div>
 </div>
 
 <!-- Setup (no Firebase config yet) -->
-<div id="setupScreen" style="display: flex;">
+<div id="setupScreen">
   <div style="font-size:40px;text-align:center">🏕️</div>
   <div class="setup-card">
     <h2>Firebase Setup Required</h2>
@@ -286,7 +284,7 @@
     <input class="setup-input" id="cfgAppId" placeholder="1:123456:web:abc123">
     <button class="setup-save" onclick="saveFirebaseConfig()">Save &amp; Continue</button>
   </div>
-  <p class="setup-hint">These credentials only allow access to your own Firebase project and are safe to include in a public GitHub repo.<br><a href="https://console.firebase.google.com/" target="_blank">Open Firebase Console →</a></p>
+  <p class="setup-hint">These credentials only allow access to your own Firebase project and are safe to include in a public GitHub repo.<br><a href="https://console.firebase.google.com" target="_blank">Open Firebase Console →</a></p>
 </div>
 
 <!-- Login -->
@@ -299,7 +297,7 @@
     <p>Enter your email and we'll send a sign-in link — no password needed.</p>
     <input class="login-input" type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email">
     <button class="login-btn" id="loginBtn" onclick="sendMagicLink()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,12 2,6"></polyline></svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
       Send sign-in link
     </button>
   </div>
@@ -320,7 +318,7 @@
   <h2 class="screen-title">Check your email</h2>
   <p class="screen-sub">We sent a sign-in link to<br><span class="email-highlight" id="sentToEmail"></span><br><br>Click the link in the email to sign in. It may take a minute to arrive.</p>
   <button class="outline-btn" onclick="sendMagicLink(true)">Resend link</button>
-  <button class="ghost-btn" onclick="showScreen(&#39;loginScreen&#39;)">← Use a different email</button>
+  <button class="ghost-btn" onclick="showScreen('loginScreen')">← Use a different email</button>
 </div>
 
 <!-- Not allowed -->
@@ -362,7 +360,7 @@
   <div id="itemsList" class="items-list"></div>
 
   <button class="fab" onclick="openAddModal()">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Item
   </button>
 </div>
@@ -429,7 +427,7 @@
     </div>
 
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal(&#39;addModal&#39;)">Cancel</button>
+      <button class="btn-secondary" onclick="closeModal('addModal')">Cancel</button>
       <button class="btn-danger" id="deleteItemBtn" style="display:none" onclick="deleteCurrentItem()">Delete</button>
       <button class="btn-primary" onclick="saveItem()">Save Item</button>
     </div>
@@ -456,7 +454,7 @@
       <input class="form-input" id="checkoutNote" placeholder="e.g. Summer Camp 2025">
     </div>
     <div class="modal-actions">
-      <button class="btn-secondary" onclick="closeModal(&#39;checkoutModal&#39;)">Cancel</button>
+      <button class="btn-secondary" onclick="closeModal('checkoutModal')">Cancel</button>
       <button class="btn-primary" style="background:var(--amber)" onclick="confirmCheckout()">✓ Confirm Check Out</button>
     </div>
   </div>
@@ -478,7 +476,7 @@
       <div id="userLoansContainer"></div>
     </div>
     <div class="modal-actions" style="margin-top:20px">
-      <button class="btn-secondary" onclick="closeModal(&#39;userModal&#39;)">Close</button>
+      <button class="btn-secondary" onclick="closeModal('userModal')">Close</button>
       <button class="btn-danger" onclick="signOutUser()">Sign Out</button>
     </div>
   </div>
@@ -576,10 +574,11 @@ function bootApp(cfg) {
       showScreen('loginScreen');
       return;
     }
-    // Check allowlist
+    // Check allowlist — try UID first, then email-key as fallback
+    const uidDoc   = await getDoc(doc(db, 'allowedUsers', fbUser.uid));
     const emailKey = fbUser.email.replace(/\./g, '_');
-    const allowDoc = await getDoc(doc(db, 'allowedUsers', emailKey));
-    if (!allowDoc.exists()) {
+    const emailDoc = await getDoc(doc(db, 'allowedUsers', emailKey));
+    if (!uidDoc.exists() && !emailDoc.exists()) {
       showScreen('notAllowedScreen');
       await signOut(auth);
       return;
@@ -1125,6 +1124,5 @@ window.launchDemo = function() {
 };
 
 </script>
-
-
-</body></html>
+</body>
+</html>
