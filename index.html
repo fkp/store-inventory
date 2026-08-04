@@ -501,7 +501,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, doc, setDoc, updateDoc,
-  deleteDoc, onSnapshot, query, getDoc
+  deleteDoc, onSnapshot, query
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ── Config resolution
@@ -560,15 +560,6 @@ function bootApp(cfg) {
   onAuthStateChanged(auth, async (fbUser) => {
     if (!fbUser) {
       showScreen('loginScreen');
-      return;
-    }
-    // Check allowlist — try UID first, then email-key as fallback
-    const uidDoc   = await getDoc(doc(db, 'allowedUsers', fbUser.uid));
-    const emailKey = fbUser.email.replace(/\./g, '_');
-    const emailDoc = await getDoc(doc(db, 'allowedUsers', emailKey));
-    if (!uidDoc.exists() && !emailDoc.exists()) {
-      showScreen('notAllowedScreen');
-      await signOut(auth);
       return;
     }
     currentUser = fbUser;
