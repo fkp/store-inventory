@@ -122,8 +122,6 @@
   .login-btn{width:100%;background:var(--green);color:white;border:none;border-radius:var(--radius-sm);padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px}
   .login-btn:hover{background:var(--green-dark)}
   .login-btn:disabled{opacity:.6;cursor:not-allowed}
-  .demo-btn{width:100%;max-width:300px;background:transparent;color:var(--gray-600);border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:border-color .15s,color .15s}
-  .demo-btn:hover{border-color:var(--gray-400);color:var(--gray-900)}
   .google-btn{width:100%;max-width:300px;background:var(--white);color:var(--gray-900);border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);transition:box-shadow .15s,border-color .15s}
   .google-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);border-color:var(--gray-400)}
   .google-btn:disabled{opacity:.6;cursor:not-allowed}
@@ -301,15 +299,6 @@
     Sign in with Google
   </button>
   <p id="loginError" style="font-size:13px;color:var(--red);margin-top:12px;display:none;text-align:center;max-width:280px"></p>
-  <div style="display:flex;align-items:center;gap:12px;width:100%;max-width:300px;margin-top:20px">
-    <div style="flex:1;height:1px;background:var(--gray-100)"></div>
-    <span style="font-size:12px;color:var(--gray-400)">or</span>
-    <div style="flex:1;height:1px;background:var(--gray-100)"></div>
-  </div>
-  <button class="demo-btn" onclick="launchDemo()">
-    Try demo — no account needed
-  </button>
-  <p style="font-size:12px;color:var(--gray-400);margin-top:8px;max-width:280px;text-align:center;line-height:1.5">Demo data is temporary and resets when you close the tab</p>
 </div>
 
 <!-- Check email screen (unused - kept for screen switcher compatibility) -->
@@ -988,103 +977,6 @@ window.showToast = function(msg) {
 };
 function showToast(msg) { window.showToast(msg); }
 
-// ══════════════════════════════════════════
-//  DEMO MODE  (no Firebase required)
-// ══════════════════════════════════════════
-window.launchDemo = function() {
-  // Stub out write functions so they work on in-memory state only
-  window.saveItem = async function() {
-    const name     = document.getElementById('itemName').value.trim();
-    const category = document.getElementById('itemCategory').value;
-    const total    = parseInt(document.getElementById('itemTotal').value) || 1;
-    const room     = document.getElementById('itemRoom').value.trim();
-    const location = document.getElementById('itemLocation').value.trim();
-    const notes    = document.getElementById('itemNotes').value.trim();
-    if (!name) { showToast('Please enter an item name'); return; }
-    if (state.editingItemId) {
-      const item = state.items.find(i => i.id === state.editingItemId);
-      Object.assign(item, { name, category, total, room, location, notes, emoji: selectedEmoji });
-      showToast('✓ Item updated');
-    } else {
-      state.items.push({ id: generateId(), name, category, total, room, location, notes, emoji: selectedEmoji, created: Date.now() });
-      showToast('✓ Item added');
-    }
-    closeModal('addModal'); renderAll(); updateRoomSuggestions();
-  };
-  window.deleteCurrentItem = async function() {
-    const item = state.items.find(i => i.id === state.editingItemId);
-    if (!confirm(`Delete "${item.name}"?`)) return;
-    state.items  = state.items.filter(i => i.id !== state.editingItemId);
-    state.loans  = state.loans.filter(l => l.itemId !== state.editingItemId);
-    closeModal('addModal'); showToast('Item deleted'); renderAll();
-  };
-  window.confirmCheckout = async function() {
-    const item = state.items.find(i => i.id === state.checkoutItemId);
-    const note = document.getElementById('checkoutNote').value.trim();
-    state.loans.push({ id: generateId(), itemId: state.checkoutItemId, userId: 'demo', userEmail: 'demo@scouts.org', userName: 'Demo Leader', qty: state.checkoutQty, note, checkedOutAt: Date.now(), returnedAt: null });
-    closeModal('checkoutModal'); showToast(`✓ ${state.checkoutQty}× ${item.name} checked out`); renderAll();
-  };
-  window.returnLoan = async function(loanId) {
-    const loan = state.loans.find(l => l.id === loanId);
-    const item = state.items.find(i => i.id === loan.itemId);
-    loan.returnedAt = Date.now();
-    showToast(`✓ ${loan.qty}× ${item.name} returned`); renderAll();
-  };
-  window.quickReturn = async function(itemId) {
-    const loans = getActiveLoans(itemId);
-    const item  = state.items.find(i => i.id === itemId);
-    loans.forEach(l => { l.returnedAt = Date.now(); });
-    showToast(`✓ ${item.name} returned`); renderAll();
-  };
-  window.signOutUser = function() {
-    closeModal('userModal');
-    state.items = []; state.loans = [];
-    showScreen('loginScreen');
-  };
-
-  // Seed sample inventory
-  const g = generateId;
-  const now = Date.now();
-  state.items = [
-    { id:g(), name:'3-Man Tent',       category:'Tents',      emoji:'⛺', total:8,  room:'Equipment Shed', location:'Rack A, Left',    notes:'', created:now },
-    { id:g(), name:'6-Man Tent',       category:'Tents',      emoji:'🏕️', total:3,  room:'Equipment Shed', location:'Rack A, Right',   notes:'', created:now },
-    { id:g(), name:'Sleeping Bag',     category:'Camping',    emoji:'🎒', total:12, room:'Equipment Shed', location:'Shelf B, Row 1',  notes:'3-season', created:now },
-    { id:g(), name:'Camping Stove',    category:'Cooking',    emoji:'🍳', total:6,  room:'Equipment Shed', location:'Shelf B, Row 2',  notes:'Check gas before use', created:now },
-    { id:g(), name:'Mess Tin Set',     category:'Cooking',    emoji:'🍽️', total:15, room:'Equipment Shed', location:'Shelf C',         notes:'', created:now },
-    { id:g(), name:'Compass',          category:'Navigation', emoji:'🧭', total:10, room:'Main Hall',      location:'Cupboard 1',      notes:'Silva type', created:now },
-    { id:g(), name:'Torch',            category:'Camping',    emoji:'🔦', total:14, room:'Main Hall',      location:'Cupboard 1',      notes:'', created:now },
-    { id:g(), name:'First Aid Kit',    category:'First Aid',  emoji:'🩺', total:4,  room:'Main Hall',      location:'Wall cabinet',    notes:'Check expiry quarterly', created:now },
-    { id:g(), name:'Hi-Vis Vest',      category:'Safety',     emoji:'🦺', total:20, room:'Main Hall',      location:'Cupboard 2',      notes:'', created:now },
-    { id:g(), name:'Playing Cards',    category:'Games',      emoji:'🃏', total:6,  room:'Games Room',     location:'Top shelf',       notes:'', created:now },
-    { id:g(), name:'Skipping Rope',    category:'Games',      emoji:'🎯', total:8,  room:'Games Room',     location:'Blue box',        notes:'', created:now },
-    { id:g(), name:'Pen Pack (×10)',   category:'Stationery', emoji:'✏️', total:10, room:'Main Hall',      location:'Stationery drawer',notes:'', created:now },
-    { id:g(), name:'A4 Clipboard',     category:'Stationery', emoji:'📋', total:8,  room:'Main Hall',      location:'Stationery drawer',notes:'', created:now },
-    { id:g(), name:'Rope 10m',         category:'Camping',    emoji:'🪢', total:8,  room:'Equipment Shed', location:'Shelf D',         notes:'', created:now },
-    { id:g(), name:'Tarpaulin',        category:'Camping',    emoji:'🌧️', total:5,  room:'Equipment Shed', location:'Shelf D',         notes:'', created:now },
-  ];
-  // Add a couple of active loans so check-in/out is visible
-  const tentId    = state.items[0].id;
-  const compassId = state.items[5].id;
-  const torchId   = state.items[6].id;
-  state.loans = [
-    { id:g(), itemId:tentId,    userId:'demo', userEmail:'demo@scouts.org', userName:'Demo Leader', qty:2, note:'Summer Camp 2025',  checkedOutAt: now - 86400000*2, returnedAt:null },
-    { id:g(), itemId:compassId, userId:'u2',   userEmail:'akela@scouts.org',userName:'Akela',       qty:4, note:'Navigation hike',    checkedOutAt: now - 86400000,   returnedAt:null },
-    { id:g(), itemId:torchId,   userId:'u3',   userEmail:'baloo@scouts.org', userName:'Baloo',      qty:3, note:'Night hike',         checkedOutAt: now - 86400000*5, returnedAt:null },
-  ];
-
-  // Set up header
-  document.getElementById('userDisplayName').textContent    = 'Demo';
-  document.getElementById('userAvatarInitials').textContent = 'DL';
-  document.getElementById('userModalAvatar').textContent    = 'DL';
-  document.getElementById('userModalName').textContent      = 'Demo Leader';
-  document.getElementById('userModalEmail').textContent     = 'demo@scouts.org · Demo Mode';
-  document.getElementById('syncDot').className = 'sync-dot ok';
-
-  showScreen('appScreen');
-  renderAll();
-  updateRoomSuggestions();
-  showToast('👋 Demo mode — changes are not saved');
-};
 
 </script>
 </body>
