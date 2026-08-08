@@ -482,7 +482,7 @@ const HARDCODED_CONFIG = {
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
+  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, doc, setDoc, updateDoc,
@@ -558,24 +558,34 @@ function bootApp(cfg) {
     launchApp(fbUser);
   });
 
-  // ── Google sign in
+  // ── Google sign in (redirect flow — works on GitHub Pages)
   window.signInWithGoogle = async function() {
     const btn = document.getElementById('loginBtn');
     btn.disabled = true;
+    btn.textContent = 'Redirecting to Google…';
     document.getElementById('loginError').style.display = 'none';
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      // onAuthStateChanged handles the rest
+      await signInWithRedirect(auth, provider);
     } catch(e) {
-      let msg = 'Sign-in failed. Please try again.';
-      if (e.code === 'auth/popup-closed-by-user') msg = 'Sign-in cancelled.';
-      if (e.code === 'auth/popup-blocked')        msg = 'Popup blocked — please allow popups for this site.';
-      document.getElementById('loginError').textContent = msg;
+      document.getElementById('loginError').textContent = 'Sign-in failed. Please try again.';
       document.getElementById('loginError').style.display = 'block';
       btn.disabled = false;
+      btn.innerHTML = googleBtnInner;
     }
   };
+
+  const googleBtnInner = document.getElementById('loginBtn').innerHTML;
+
+  // ── Handle redirect result on page load
+  getRedirectResult(auth).then(async result => {
+    if (!result) return; // no redirect in progress, normal page load
+    // result.user is handled by onAuthStateChanged automatically
+  }).catch(e => {
+    console.error('Redirect error', e);
+    document.getElementById('loginError').textContent = 'Sign-in failed. Please try again.';
+    document.getElementById('loginError').style.display = 'block';
+  });
 
   window.signOutUser = async function() {
     if (unsubItems) unsubItems();
