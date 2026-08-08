@@ -15,10 +15,8 @@
 ║                                                                  ║
 ║  STEP 2 — Enable Authentication                                  ║
 ║    1. Left menu: Build → Authentication → Get started            ║
-║    2. Sign-in method tab → Click Email/Password                  ║
-║    3. Enable the top toggle (Email/Password) → Save             ║
-║    4. To add a user: Authentication → Users → Add user          ║
-║       Enter their email and a temporary password                 ║
+║    2. Sign-in method tab → Add new provider → Google            ║
+║    3. Enable it → add your support email → Save                 ║
 ║                                                                  ║
 ║  STEP 3 — Create Firestore database                             ║
 ║    1. Left menu: Build → Firestore Database → Create database   ║
@@ -61,10 +59,11 @@
 ║    In Firestore → Data tab:                                      ║
 ║    1. Start collection → ID: allowedUsers                        ║
 ║    2. Add document:                                              ║
-║       Document ID = email with dots replaced by underscores      ║
-║       e.g.  jane@abc.org  becomes  jane@abc_org           ║
-║       Field: email | Type: string | Value: jane@abc.org       ║
-║    3. Repeat for each leader you want to allow                  ║
+║       Document ID = their Google email address exactly           ║
+║       e.g.  jane.smith@gmail.com                                 ║
+║       Field: email | Type: string | Value: jane.smith@gmail.com ║
+║    3. Repeat for each person you want to allow                  ║
+║    To remove access: delete their document                       ║
 ║                                                                  ║
 ║  STEP 8 — Deploy to GitHub Pages (free)                         ║
 ║    1. Create GitHub repo, upload this file as index.html         ║
@@ -123,8 +122,11 @@
   .login-btn{width:100%;background:var(--green);color:white;border:none;border-radius:var(--radius-sm);padding:13px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font);transition:background .15s;display:flex;align-items:center;justify-content:center;gap:8px}
   .login-btn:hover{background:var(--green-dark)}
   .login-btn:disabled{opacity:.6;cursor:not-allowed}
-  .demo-btn{width:100%;max-width:340px;background:transparent;color:var(--gray-600);border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:border-color .15s,color .15s}
+  .demo-btn{width:100%;max-width:300px;background:transparent;color:var(--gray-600);border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:13px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);transition:border-color .15s,color .15s}
   .demo-btn:hover{border-color:var(--gray-400);color:var(--gray-900)}
+  .google-btn{width:100%;max-width:300px;background:var(--white);color:var(--gray-900);border:1.5px solid var(--gray-100);border-radius:var(--radius-sm);padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.08);transition:box-shadow .15s,border-color .15s}
+  .google-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,.12);border-color:var(--gray-400)}
+  .google-btn:disabled{opacity:.6;cursor:not-allowed}
 
   /* ── Check email ── */
   #checkEmailScreen{min-height:100vh;display:none;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;background:var(--white)}
@@ -294,18 +296,12 @@
   <div class="login-logo">🏕️</div>
   <h1 class="login-title">Inventory</h1>
   <p class="login-sub">Sign in to access your unit's equipment inventory</p>
-  <div class="login-card">
-    <h2>Sign in</h2>
-    <p>Use the email and password your admin set up for you.</p>
-    <input class="login-input" type="email" id="loginEmail" placeholder="your@email.com" autocomplete="email">
-    <input class="login-input" type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')signIn()">
-    <button class="login-btn" id="loginBtn" onclick="signIn()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-      Sign in
-    </button>
-    <p id="loginError" style="font-size:13px;color:var(--red);margin-top:10px;display:none;text-align:center"></p>
-  </div>
-  <div style="display:flex;align-items:center;gap:12px;width:100%;max-width:340px;margin-top:16px">
+  <button class="google-btn" id="loginBtn" onclick="signInWithGoogle()">
+    <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.7 2.5 30.2 0 24 0 14.7 0 6.7 5.4 2.9 13.3l7.8 6C12.5 13 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4 6.9-10 6.9-17z"/><path fill="#FBBC05" d="M10.7 28.7A14.8 14.8 0 0 1 9.5 24c0-1.6.3-3.2.8-4.7l-7.8-6A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.7l8.2-6z"/><path fill="#34A853" d="M24 48c6.2 0 11.4-2 15.2-5.5l-7.5-5.8c-2 1.4-4.6 2.2-7.7 2.2-6.2 0-11.5-4.2-13.3-9.9l-8.2 6C6.7 42.6 14.7 48 24 48z"/></svg>
+    Sign in with Google
+  </button>
+  <p id="loginError" style="font-size:13px;color:var(--red);margin-top:12px;display:none;text-align:center;max-width:280px"></p>
+  <div style="display:flex;align-items:center;gap:12px;width:100%;max-width:300px;margin-top:20px">
     <div style="flex:1;height:1px;background:var(--gray-100)"></div>
     <span style="font-size:12px;color:var(--gray-400)">or</span>
     <div style="flex:1;height:1px;background:var(--gray-100)"></div>
@@ -497,11 +493,11 @@ const HARDCODED_CONFIG = {
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, doc, setDoc, updateDoc,
-  deleteDoc, onSnapshot, query
+  deleteDoc, onSnapshot, query, getDoc
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ── Config resolution
@@ -562,36 +558,35 @@ function bootApp(cfg) {
       showScreen('loginScreen');
       return;
     }
+    // Check allowedUsers — document ID is the user's email address exactly
+    const allowDoc = await getDoc(doc(db, 'allowedUsers', fbUser.email));
+    if (!allowDoc.exists()) {
+      showScreen('notAllowedScreen');
+      await signOut(auth);
+      return;
+    }
     currentUser = fbUser;
     launchApp(fbUser);
   });
 
-  // ── Email/password sign in
-  window.signIn = async function() {
-    const email    = document.getElementById('loginEmail').value.trim().toLowerCase();
-    const password = document.getElementById('loginPassword').value;
-    const errEl    = document.getElementById('loginError');
-    const btn      = document.getElementById('loginBtn');
-    errEl.style.display = 'none';
-    if (!email || !password) { showLoginError('Please enter your email and password.'); return; }
-    btn.disabled = true; btn.textContent = 'Signing in…';
+  // ── Google sign in
+  window.signInWithGoogle = async function() {
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true;
+    document.getElementById('loginError').style.display = 'none';
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
       // onAuthStateChanged handles the rest
     } catch(e) {
-      let msg = 'Incorrect email or password.';
-      if (e.code === 'auth/too-many-requests') msg = 'Too many attempts — try again later.';
-      if (e.code === 'auth/user-disabled')     msg = 'This account has been disabled.';
-      showLoginError(msg);
-    } finally {
+      let msg = 'Sign-in failed. Please try again.';
+      if (e.code === 'auth/popup-closed-by-user') msg = 'Sign-in cancelled.';
+      if (e.code === 'auth/popup-blocked')        msg = 'Popup blocked — please allow popups for this site.';
+      document.getElementById('loginError').textContent = msg;
+      document.getElementById('loginError').style.display = 'block';
       btn.disabled = false;
-      btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg> Sign in`;
     }
   };
-  function showLoginError(msg) {
-    const el = document.getElementById('loginError');
-    el.textContent = msg; el.style.display = 'block';
-  }
 
   window.signOutUser = async function() {
     if (unsubItems) unsubItems();
