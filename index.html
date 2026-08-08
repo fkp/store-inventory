@@ -77,6 +77,8 @@
 ╚══════════════════════════════════════════════════════════════════╝
 -->
 <meta charset="UTF-8">
+<meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏕️</text></svg>">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Inventory</title>
 <style>
@@ -482,7 +484,7 @@ const HARDCODED_CONFIG = {
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import {
-  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut
+  getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, collection, doc, setDoc, updateDoc,
@@ -548,44 +550,40 @@ function bootApp(cfg) {
       return;
     }
     // Check allowedUsers — document ID is the user's email address exactly
-    const allowDoc = await getDoc(doc(db, 'allowedUsers', fbUser.email));
-    if (!allowDoc.exists()) {
-      showScreen('notAllowedScreen');
-      await signOut(auth);
+    try {
+      const allowDoc = await getDoc(doc(db, 'allowedUsers', fbUser.email));
+      if (!allowDoc.exists()) {
+        showScreen('notAllowedScreen');
+        await signOut(auth);
+        return;
+      }
+    } catch(e) {
+      console.error('allowedUsers check failed:', e.code, e.message);
+      showScreen('loginScreen');
       return;
     }
     currentUser = fbUser;
     launchApp(fbUser);
   });
 
-  // ── Google sign in (redirect flow — works on GitHub Pages)
+  // ── Google sign in (popup flow)
   window.signInWithGoogle = async function() {
     const btn = document.getElementById('loginBtn');
     btn.disabled = true;
-    btn.textContent = 'Redirecting to Google…';
     document.getElementById('loginError').style.display = 'none';
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged handles the rest
     } catch(e) {
-      document.getElementById('loginError').textContent = 'Sign-in failed. Please try again.';
+      let msg = 'Sign-in failed. Please try again.';
+      if (e.code === 'auth/popup-closed-by-user') msg = 'Sign-in window was closed.';
+      if (e.code === 'auth/popup-blocked')        msg = 'Popup was blocked — please allow popups for this site.';
+      document.getElementById('loginError').textContent = msg;
       document.getElementById('loginError').style.display = 'block';
       btn.disabled = false;
-      btn.innerHTML = googleBtnInner;
     }
   };
-
-  const googleBtnInner = document.getElementById('loginBtn').innerHTML;
-
-  // ── Handle redirect result on page load
-  getRedirectResult(auth).then(async result => {
-    if (!result) return; // no redirect in progress, normal page load
-    // result.user is handled by onAuthStateChanged automatically
-  }).catch(e => {
-    console.error('Redirect error', e);
-    document.getElementById('loginError').textContent = 'Sign-in failed. Please try again.';
-    document.getElementById('loginError').style.display = 'block';
-  });
 
   window.signOutUser = async function() {
     if (unsubItems) unsubItems();
