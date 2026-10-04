@@ -319,18 +319,11 @@
   <div class="controls-bar">
     <div class="search-wrap">
       <span class="search-icon">🔍</span>
-      <input type="text" id="searchInput" placeholder="Search items, rooms…" oninput="renderItems()">
+      <input type="text" id="searchInput" placeholder="Search items…" oninput="renderItems()">
     </div>
-    <select class="filter-select" id="stockFilter" onchange="renderItems()">
-      <option value="all">All</option>
-      <option value="available">Available</option>
-      <option value="low">Low stock</option>
-      <option value="out">Out of stock</option>
-    </select>
   </div>
 
   <div class="cat-pills" id="catPills"></div>
-  <div class="stats-row" id="statsRow"></div>
   <div id="itemsList" class="items-list"></div>
 
 </div>
@@ -442,7 +435,7 @@ if (!config) {
 const state = {
   items: [],
   loans: [],
-  activeCategory: 'All',
+  activeRoom: 'All',
   editingItemId: null,
   checkoutItemId: null,
   checkoutQty: 1,
@@ -642,49 +635,36 @@ window.showScreen = function(id) {
 // ══════════════════════════════════════════
 const CAT_ICONS = { Tents:'🏕️', Camping:'⛺', Cooking:'🍳', Games:'🎮', Stationery:'✏️', 'First Aid':'🩺', Navigation:'🧭', Safety:'🦺', Transport:'🎒', Other:'📦' };
 
-window.renderAll = function() { renderStats(); renderCatPills(); renderItems(); };
+window.renderAll = function() { renderRoomPills(); renderItems(); };
 
-function renderStats() {
-  const total = state.items.length;
-  const out   = state.items.filter(i => getAvailable(i.id) === 0 && i.total > 0).length;
-  const low   = state.items.filter(i => { const a = getAvailable(i.id); return a > 0 && a <= Math.ceil(i.total * 0.25); }).length;
-  document.getElementById('statsRow').innerHTML = `
-    <div class="stat-card"><div class="stat-value">${total}</div><div class="stat-label">Items</div></div>
-    <div class="stat-card"><div class="stat-value warn">${low}</div><div class="stat-label">Low Stock</div></div>
-    <div class="stat-card"><div class="stat-value danger">${out}</div><div class="stat-label">Out of Stock</div></div>`;
-}
-
-function renderCatPills() {
-  const cats = ['All', ...[...new Set(state.items.map(i => i.category))].sort()];
-  document.getElementById('catPills').innerHTML = cats.map(c =>
-    `<button class="cat-pill ${c === state.activeCategory ? 'active' : ''}" onclick="setCategory('${c.replace(/'/g,"\\'")}')">
-      ${c === 'All' ? '🗂️ All' : (CAT_ICONS[c] || '📦') + ' ' + c}
+function renderRoomPills() {
+  const rooms = ['All', ...[...new Set(state.items.map(i => i.room).filter(Boolean))].sort()];
+  document.getElementById('catPills').innerHTML = rooms.map(r =>
+    `<button class="cat-pill ${r === state.activeRoom ? 'active' : ''}" onclick="setRoom('${r.replace(/'/g,"\'")}')">
+      ${r === 'All' ? '🗂️ All Rooms' : '📍 ' + r}
     </button>`
   ).join('');
 }
 
-window.setCategory = function(cat) { state.activeCategory = cat; renderCatPills(); renderItems(); };
+window.setRoom = function(room) { state.activeRoom = room; renderRoomPills(); renderItems(); };
 
 window.renderItems = function() {
   const search = document.getElementById('searchInput').value.toLowerCase();
-  const sf     = document.getElementById('stockFilter').value;
 
   let items = state.items.filter(item => {
-    if (state.activeCategory !== 'All' && item.category !== state.activeCategory) return false;
+    if (state.activeRoom !== 'All' && item.room !== state.activeRoom) return false;
     if (search) {
       const haystack = [item.name, item.category, item.room, item.location, item.notes].join(' ').toLowerCase();
       if (!haystack.includes(search)) return false;
     }
-    const a = getAvailable(item.id);
-    if (sf === 'available' && a === 0) return false;
-    if (sf === 'out' && a > 0) return false;
-    if (sf === 'low' && (a === 0 || a > Math.ceil(item.total * 0.25))) return false;
     return true;
   });
 
+  items.sort((a, b) => a.name.localeCompare(b.name));
+
   const el = document.getElementById('itemsList');
   if (!items.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No items found</div><p style="font-size:14px;color:var(--gray-400)">Try adjusting your search or add a new item.</p></div>`;
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">No items found</div><p style="font-size:14px;color:var(--gray-400)">Try adjusting your search.</p></div>`;
     return;
   }
   el.innerHTML = items.map(itemCardHTML).join('');
@@ -693,8 +673,8 @@ window.renderItems = function() {
 function itemCardHTML(item) {
   const avail = getAvailable(item.id);
   const co    = getCheckedOut(item.id);
-  const isLow = avail > 0 && avail <= Math.ceil(item.total * 0.25);
   const isOut = avail === 0 && item.total > 0;
+  const isLow = !isOut && (co / item.total) >= 0.5;
   const sc    = isOut ? 'out' : isLow ? 'low' : '';
   const loans = getActiveLoans(item.id);
 
