@@ -3,6 +3,14 @@
     "public": ".",
     "ignore": [
       "firebase.json",
+      ".firebaserc",
+      "serviceAccountKey.json",
+      "import_inventory.py",
+      "inventory_template.xlsx",
+      "*.py",
+      "*.xlsx",
+      "*.json",
+      "!index.html",
       "**/.*",
       "**/node_modules/**"
     ]
