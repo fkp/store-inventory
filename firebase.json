@@ -8,6 +8,7 @@
       "import_inventory.py",
       "inventory_template.xlsx",
       "*.py",
+      "*.bat",
       "*.xlsx",
       "*.json",
       "!index.html",
