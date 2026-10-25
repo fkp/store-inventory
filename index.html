@@ -435,7 +435,7 @@ if (!config) {
 const state = {
   items: [],
   loans: [],
-  activeRoom: 'All',
+  activeCategory: 'All',
   editingItemId: null,
   checkoutItemId: null,
   checkoutQty: 1,
@@ -635,24 +635,24 @@ window.showScreen = function(id) {
 // ══════════════════════════════════════════
 const CAT_ICONS = { Tents:'🏕️', Camping:'⛺', Cooking:'🍳', Games:'🎮', Stationery:'✏️', 'First Aid':'🩺', Navigation:'🧭', Safety:'🦺', Transport:'🎒', Other:'📦' };
 
-window.renderAll = function() { renderRoomPills(); renderItems(); };
+window.renderAll = function() { renderCatPills(); renderItems(); };
 
-function renderRoomPills() {
-  const rooms = ['All', ...[...new Set(state.items.map(i => i.room).filter(Boolean))].sort()];
-  document.getElementById('catPills').innerHTML = rooms.map(r =>
-    `<button class="cat-pill ${r === state.activeRoom ? 'active' : ''}" onclick="setRoom('${r.replace(/'/g,"\'")}')">
-      ${r === 'All' ? '🗂️ All Rooms' : '📍 ' + r}
+function renderCatPills() {
+  const cats = ['All', ...[...new Set(state.items.map(i => i.category).filter(Boolean))].sort()];
+  document.getElementById('catPills').innerHTML = cats.map(c =>
+    `<button class="cat-pill ${c === state.activeCategory ? 'active' : ''}" onclick="setCategory('${c.replace(/'/g,"\'")}')">
+      ${c === 'All' ? '🗂️ All' : (CAT_ICONS[c] || '📦') + ' ' + c}
     </button>`
   ).join('');
 }
 
-window.setRoom = function(room) { state.activeRoom = room; renderRoomPills(); renderItems(); };
+window.setCategory = function(cat) { state.activeCategory = cat; renderCatPills(); renderItems(); };
 
 window.renderItems = function() {
   const search = document.getElementById('searchInput').value.toLowerCase();
 
   let items = state.items.filter(item => {
-    if (state.activeRoom !== 'All' && item.room !== state.activeRoom) return false;
+    if (state.activeCategory !== 'All' && item.category !== state.activeCategory) return false;
     if (search) {
       const haystack = [item.name, item.category, item.room, item.location, item.notes].join(' ').toLowerCase();
       if (!haystack.includes(search)) return false;
